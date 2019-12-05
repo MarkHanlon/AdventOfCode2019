@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -10,6 +11,8 @@ namespace Day5
     {
         static void Main(string[] args)
         {
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
 
             string programCode = "";
             List<int> ramList = new List<int>();
@@ -73,8 +76,9 @@ namespace Day5
                         
                     }
 
-                    // Now return the value at memory location 0
-                    Console.WriteLine($"Done execution");
+                    // Done
+                    timer.Stop();
+                    Console.WriteLine($"Done execution in {timer.ElapsedMilliseconds}ms");
                 }
             }
             catch (Exception ex)
