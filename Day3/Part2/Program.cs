@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -22,7 +23,9 @@ namespace Day3
         // distance for each wire.
         static void Main(string[] args)
         {
-
+            var timer = new Stopwatch();
+            timer.Start();
+            
             try
             {
                 var vDict = new Dictionary<Tuple<int,int>, int>[2]{new Dictionary<Tuple<int,int>, int>(), 
@@ -30,8 +33,11 @@ namespace Day3
                 var hDict = new Dictionary<Tuple<int,int>, int>[2]{new Dictionary<Tuple<int,int>, int>(), 
                                                                    new Dictionary<Tuple<int,int>, int>()};
                 int stringNum = 0;
-
-                using (StreamReader sr = new StreamReader("input.txt"))
+                var vCrossingDict = new Dictionary<Tuple<int,int>, Tuple<int,int>>[2]{new Dictionary<Tuple<int,int>, Tuple<int,int>>(), 
+                                                                   new Dictionary<Tuple<int,int>, Tuple<int,int>>()};
+                var hCrossingDict = new Dictionary<Tuple<int,int>, Tuple<int,int>>[2]{new Dictionary<Tuple<int,int>, Tuple<int,int>>(), 
+                                                                   new Dictionary<Tuple<int,int>, Tuple<int,int>>()};
+                using (StreamReader sr = new StreamReader("test1.txt"))
                 {
                     string wireStr;
                     while((wireStr = sr.ReadLine()) != null)
@@ -68,36 +74,115 @@ namespace Day3
                     
                     // Now find the crossing points of all the lines and store the shortest Manhattan distance
                     int shortestDist = 2000;
-                    foreach(Tuple<int,int> vp in vDict[0].Keys)
+                    for(int wireNum = 0; wireNum <= 1; wireNum++) // only copes with 2 wires!
                     {
-                        foreach(Tuple<int,int> hp in hDict[1].Keys)
+                        foreach(Tuple<int,int> vp in vDict[wireNum].Keys)
                         {
-                            if (theyCross(vp, vDict[0][vp], hp, hDict[1][hp]))
+                            foreach(Tuple<int,int> hp in hDict[1-wireNum].Keys)
                             {
-                                Tuple<int,int> crossPoint = findCrossPoint(vp, vDict[0][vp], hp, hDict[1][hp]);
-                                int manDist = Math.Abs(crossPoint.Item1) + Math.Abs(crossPoint.Item2);
-                                if (manDist > 0 && manDist < shortestDist)
-                                    shortestDist = manDist;
+                                if (theyCross(vp, vDict[wireNum][vp], hp, hDict[1-wireNum][hp]))
+                                {
+                                    Tuple<int,int> crossPoint = findCrossPoint(vp, vDict[wireNum][vp], hp, hDict[1-wireNum][hp]);
+                                    int manDist = Math.Abs(crossPoint.Item1) + Math.Abs(crossPoint.Item2);
+                                    if (manDist > 0 && manDist < shortestDist)
+                                        shortestDist = manDist;
+
+                                    // Mark the crossing lines as intersections, with length along/up to the cross point
+                                    if (manDist > 0)
+                                    {
+                                        int vCrossLength = Math.Abs(hp.Item2 - vp.Item2);
+                                        if (!vCrossingDict[wireNum].ContainsKey(vp))
+                                            vCrossingDict[wireNum].Add(vp, new Tuple<int, int>(vDict[wireNum][vp], vCrossLength));
+
+                                        int hCrossLength = Math.Abs(vp.Item1 - hp.Item1);
+                                        if (!hCrossingDict[1-wireNum].ContainsKey(hp))
+                                            hCrossingDict[1-wireNum].Add(hp, new Tuple<int, int>(hDict[1-wireNum][hp], hCrossLength));
+                                    }
+                                }
                             }
                         }
                     }
 
-                    foreach(Tuple<int,int> vp in vDict[1].Keys)
+                    // Now walk all the line segements and when an intersection is met, record the length in another dict
+                    Dictionary<Tuple<int,int>, int[]> intersections = new Dictionary<Tuple<int, int>, int[] >();
+                    int wireNum2 = 0;
+                    while (wireNum2 < 2)
                     {
-                        foreach(Tuple<int,int> hp in hDict[0].Keys)
+                        Tuple<int,int> currentPoint = new Tuple<int,int>(0,0);
+                        int lengthWalked = 0;
+                        while (true)
                         {
-                            if (theyCross(vp, vDict[1][vp], hp, hDict[0][hp]))
+                            // Horizontal first 
+                            // - Is this an intersection line?
+                            if (hCrossingDict[wireNum2].ContainsKey(currentPoint))
                             {
-                                Tuple<int,int> crossPoint = findCrossPoint(vp, vDict[1][vp], hp, hDict[0][hp]);
-                                int manDist = Math.Abs(crossPoint.Item1) + Math.Abs(crossPoint.Item2);
-                                if (manDist > 0 && manDist < shortestDist)
-                                    shortestDist = manDist;
+                                // Yes, so only count the length to the intersection
+                                int sublengthWalked = lengthWalked + hCrossingDict[wireNum2][currentPoint].Item2;
+                                Tuple<int,int> intersectionPoint = new Tuple<int,int>(hCrossingDict[wireNum2][currentPoint].Item1 > 0 ? 
+                                                                                                        currentPoint.Item1 + hCrossingDict[wireNum2][currentPoint].Item2 
+                                                                                                        : currentPoint.Item1 - hCrossingDict[wireNum2][currentPoint].Item2, // x-coord
+                                                                                                    currentPoint.Item2); // y-coord
+                                if (intersections.ContainsKey(intersectionPoint))
+                                {
+                                    intersections[intersectionPoint] = new int[] {intersections[intersectionPoint][0], sublengthWalked};
+                                }
+                                else
+                                {
+                                    intersections.Add(intersectionPoint, new int[] {sublengthWalked, 0}); // Second param is length to this intersection for wire 2
+                                }
                             }
+
+                            // Now walk the whole of this segment and update current point                       
+                            if (!hDict[wireNum2].ContainsKey(currentPoint))
+                            {
+                                // Does the origin line actually start vertically?
+                                if (currentPoint.Item1 != 0 || currentPoint.Item2 != 0)
+                                {
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                lengthWalked += Math.Abs(hDict[wireNum2][currentPoint]);
+                                currentPoint = new Tuple<int,int>(currentPoint.Item1 + hDict[wireNum2][currentPoint], currentPoint.Item2);
+                            }
+
+                            // Now vertical 
+                            // - Is this an intersection line?
+                            if (vCrossingDict[wireNum2].ContainsKey(currentPoint))
+                            {
+                                // Yes, so only count the length to the intersection
+                                int sublengthWalked = lengthWalked + vCrossingDict[wireNum2][currentPoint].Item2;
+                                Tuple<int,int> intersectionPoint = new Tuple<int,int>(currentPoint.Item1, // x-coord
+                                                                                                vCrossingDict[wireNum2][currentPoint].Item1 > 0 ? 
+                                                                                                        currentPoint.Item2 + vCrossingDict[wireNum2][currentPoint].Item2 
+                                                                                                        : currentPoint.Item2 - vCrossingDict[wireNum2][currentPoint].Item2); // y-coord
+                                if (intersections.ContainsKey(intersectionPoint))
+                                {
+                                    intersections[intersectionPoint] = new int[] {intersections[intersectionPoint][0], sublengthWalked};
+                                }
+                                else
+                                {
+                                    intersections.Add(intersectionPoint, new int[] {sublengthWalked, 0}); // Second param is length to this intersection for wire 2
+                                }
+                            }
+
+                            // Now walk the whole of this segment and update curernt point                       
+                            if (!vDict[wireNum2].ContainsKey(currentPoint))
+                                break;
+
+                            lengthWalked += Math.Abs(vDict[wireNum2][currentPoint]);
+                            currentPoint = new Tuple<int,int>(currentPoint.Item1, currentPoint.Item2 + vDict[wireNum2][currentPoint]);
+
                         }
+                        wireNum2++;
                     }
+                    
+                    // Find the intersection with the smallest sum
+                    int minLength = intersections.Values.Min(x => x[0]+x[1]);
 
-
-                    Console.WriteLine($"Answer is -not solved-");
+                    timer.Stop();
+                    Console.WriteLine($"Answer is {minLength} in {timer.ElapsedMilliseconds}ms");
                 }
             }
             catch (Exception ex)
