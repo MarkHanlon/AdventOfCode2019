@@ -32,6 +32,8 @@ namespace Day7
                     var outputs = computer.Run(new int[] {thisPerm[i],input});
                     input = outputs[0];
                 }
+                if (input > highestOutput)
+                    highestOutput = input;
             }
             timer.Stop();
             Console.WriteLine($"Done with output: {highestOutput}, execution in {timer.ElapsedMilliseconds}ms");
@@ -45,12 +47,11 @@ namespace Day7
             var perms = new List<List<int>>();
             foreach (int i in input)
             {
-                var others = input.Except(new List<int>{i});
-                perms.AddRange(FindPermutations(others.ToList()).Select(perm => new List<int>{i}.AddRange(perm)));
+                var others = input.Except(new List<int>{i});               
+                perms.AddRange(FindPermutations(others.ToList()).Select(s => s.Prepend(i).ToList()));
             }
             return perms;
         }
-
     }
 
     class IntcodeComputer
